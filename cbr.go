@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +21,10 @@ const (
 // Debug mode
 // If this variable is set to true, debug mode activated for the package
 var Debug = false
+
+// Cache for requests
+var cache map[string]Result
+var cacheHits int
 
 // Currency is a currency item
 type Currency struct {
@@ -40,16 +43,16 @@ type Result struct {
 	Currencies []Currency `xml:"Valute"`
 }
 
-func getRate(currency string, t time.Time, fetch fetchFunction) (float64, error) {
+func getRate(currency string, t time.Time, fetch fetchFunction, useCache bool) (float64, error) {
 	if Debug {
 		log.Printf("Fetching the currency rate for %s at %v\n", currency, t.Format("02.01.2006"))
 	}
 
-	var result Result
-	err := getCurrencies(&result, t, fetch)
+	result, err := getCurrenciesCacheOrRequest(t, fetch, useCache)
 	if err != nil {
 		return 0, err
 	}
+
 	for _, v := range result.Currencies {
 		if v.CharCode == currency {
 			return getCurrencyRateValue(v)
@@ -68,6 +71,33 @@ func getCurrencyRateValue(cur Currency) (float64, error) {
 	return res / float64(cur.Nom), nil
 }
 
+func getCurrenciesCacheOrRequest(t time.Time, fetch fetchFunction, useCache bool) (Result, error) {
+	formatedDate := t.Format(dateFormat)
+
+	result := Result{}
+
+	// if currencies were already requested for this date - return from cache, if it is used
+	if cachedResult, exist := cache[formatedDate]; exist && useCache {
+		log.Printf("Get from cache!")
+		result = cachedResult
+		cacheHits += 1
+	} else {
+		err := getCurrencies(&result, t, fetch)
+		if err != nil {
+			return result, err
+		}
+		if useCache {
+			// if cache is used - put result to cache
+			if len(cache) == 0 {
+				// if cache is empty - initialize
+				cache = make(map[string]Result)
+			}
+			cache[formatedDate] = result
+		}
+	}
+	return result, nil
+}
+
 func getCurrencies(v *Result, t time.Time, fetch fetchFunction) error {
 	url := baseURL + "?date_req=" + t.Format(dateFormat)
 	if fetch == nil {
@@ -77,7 +107,7 @@ func getCurrencies(v *Result, t time.Time, fetch fetchFunction) error {
 	if err != nil {
 		return err
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
