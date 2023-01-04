@@ -15,11 +15,12 @@ type Client interface {
 }
 
 type client struct {
-	fetch fetchFunction
+	fetch    fetchFunction
+	UseCache bool
 }
 
 func (s client) GetRate(currency string, t time.Time) (float64, error) {
-	rate, err := getRate(currency, t, s.fetch)
+	rate, err := getRate(currency, t, s.fetch, s.UseCache)
 	if err != nil {
 		return 0, err
 	}
@@ -32,5 +33,5 @@ func (s client) SetFetchFunction(f fetchFunction) {
 
 // NewClient creates a new rates service instance
 func NewClient() Client {
-	return client{http.Get}
+	return client{fetch: http.Get, UseCache: true}
 }
