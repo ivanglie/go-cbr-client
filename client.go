@@ -23,18 +23,24 @@ type client struct {
 	fetch fetchFunction
 }
 
+// Returns currency rate in float64
 func (s client) GetRate(currency string, t time.Time) (float64, error) {
 	return getRate(currency, t, s.fetch)
 }
 
+// Returns currency rate in Decimal
+//
+// Rationale: https://pkg.go.dev/github.com/shopspring/decimal - FAQ section
 func (s client) GetRateDecimal(currency string, t time.Time) (decimal.Decimal, error) {
 	return getRateDecimal(currency, t, s.fetch)
 }
 
+// Returns currency rate string with dot as decimal separator
 func (s client) GetRateString(currency string, t time.Time) (string, error) {
 	return getRateString(currency, t, s.fetch)
 }
 
+// Returns currency struct
 func (s client) GetCurrencyInfo(currency string, t time.Time) (Currency, error) {
 	return getCurrency(currency, t, s.fetch)
 }
