@@ -12,9 +12,18 @@ type fetchFunction func(url string) (resp *http.Response, err error)
 
 // Client is a currency rates service client... what else?
 type Client interface {
+	// Returns currency rate in float64
 	GetRate(string, time.Time) (float64, error)
+
+	// Returns currency rate in Decimal
+	//
+	// Rationale: https://pkg.go.dev/github.com/shopspring/decimal - FAQ section
 	GetRateDecimal(string, time.Time) (decimal.Decimal, error)
+
+	// Returns currency rate string with dot as decimal separator
 	GetRateString(string, time.Time) (string, error)
+
+	// Returns currency struct
 	GetCurrencyInfo(string, time.Time) (Currency, error)
 	SetFetchFunction(fetchFunction)
 }
