@@ -104,7 +104,6 @@ func (s *Client) currencies(v *Result, t time.Time) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
 
 	decoder := xml.NewDecoder(bytes.NewReader(body))
 	decoder.CharsetReader = func(charset string, input io.Reader) (io.Reader, error) {
