@@ -39,13 +39,36 @@ type Result struct {
 	Currencies []Currency `xml:"Valute"`
 }
 
-func rate(currency string, t time.Time) (float64, error) {
+type httpClientInterface interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+// Client is a rates service client.
+type Client struct {
+	httpClient httpClientInterface
+}
+
+// NewClient creates a new rates service instance.
+func NewClient() *Client {
+	return &Client{httpClient: &http.Client{}}
+}
+
+// GetRate returns a currency rate for a given currency and date.
+func (s *Client) GetRate(currency string, t time.Time) (float64, error) {
+	rate, err := s.rate(currency, t, s.httpClient)
+	if err != nil {
+		return 0, err
+	}
+	return rate, nil
+}
+
+func (s *Client) rate(currency string, t time.Time, hc httpClientInterface) (float64, error) {
 	if Debug {
 		log.Printf("Fetching the currency rate for %s at %v\n", currency, t.Format("02.01.2006"))
 	}
 
 	var result Result
-	if err := currencies(&result, t); err != nil {
+	if err := s.currencies(&result, t); err != nil {
 		return 0, err
 	}
 
@@ -58,18 +81,7 @@ func rate(currency string, t time.Time) (float64, error) {
 	return 0, fmt.Errorf("unknown currency: %s", currency)
 }
 
-func currencyRateValue(cur Currency) (float64, error) {
-	var res float64 = 0
-	properFormattedValue := strings.Replace(cur.Value, ",", ".", -1)
-	res, err := strconv.ParseFloat(properFormattedValue, 64)
-	if err != nil {
-		return res, err
-	}
-
-	return res / float64(cur.Nom), nil
-}
-
-func currencies(v *Result, t time.Time) error {
+func (s *Client) currencies(v *Result, t time.Time) error {
 	url := baseURL + "?date_req=" + t.Format(dateFormat)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -78,21 +90,19 @@ func currencies(v *Result, t time.Time) error {
 
 	req.Header.Set("User-Agent", randomUserAgent())
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("status code: %d", resp.StatusCode)
 	}
 
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("status code: %d", resp.StatusCode)
 	}
 
 	decoder := xml.NewDecoder(bytes.NewReader(body))
@@ -111,4 +121,15 @@ func currencies(v *Result, t time.Time) error {
 	}
 
 	return nil
+}
+
+func currencyRateValue(cur Currency) (float64, error) {
+	var res float64 = 0
+	properFormattedValue := strings.Replace(cur.Value, ",", ".", -1)
+	res, err := strconv.ParseFloat(properFormattedValue, 64)
+	if err != nil {
+		return res, err
+	}
+
+	return res / float64(cur.Nom), nil
 }
